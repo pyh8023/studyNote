@@ -220,4 +220,197 @@ NameNode使用了FsImage+EditLog整合的方案：
 
    这个是支持计算层的分治、并行计算的核心
 
-## 2.8 安全策略
+
+
+# 3.HDFS HA
+
+单NameNode的HDFS存在一下两个问题：
+
+1. 单点故障
+
+2. 压力过大，内存受限
+
+**HDFS解决方案：**
+
+1. 单点故障：
+   - 高可用方案：HA（High Available）
+   -  多个NN，主备切换
+
+2. 压力过大，内存受限：
+   -  联帮机制： Federation（元数据分片）
+   - 多个NN，管理不同的元数据
+
+## 3.1 HA方案
+
+**多台NN主备模式，Active和Standby状态**
+
+在Hadoop 2.0.0之前，存在单点故障问题，一旦NameNode不可用，整个集群将不可用，于是在hadoop2.0.0之后支持启动两个NameNode(3.0.0之后可以启动两个以上的NameNode)，这允许在机器崩溃时快速地将故障转移到新的NameNode，或者在计划维护时允许管理员发起的优雅故障转移。
+
+**Active对外提供服务 **
+
+在典型的HA集群中，两台或更多独立的机器被配置为namenode。在任何时间点，只有一个namenode处于*Active*状态，而其他namenode处于*Standby*状态。活动的NameNode负责集群中的所有客户端操作，而备用服务器只是充当工作者，维护足够的状态，以便在必要时提供快速的故障转移。
+
+**增加journalnode角色(>3台)，负责同步NN的editlog**
+
+为了使备用节点的状态与活动节点保持同步，两个节点都与一组称为JournalNodes (JNs)的独立守护进程通信。当*Active*节点修改namespace时，它会将修改的记录持久地记录到大多数这些JNs中。*Standby*节点能够从JNs中读取编辑，并不断监视它们以查看编辑日志的更改。当备用节点看到编辑时，它将其应用到自己的namespace。在发生故障转移时，*Standby*系统将确保它已从JNs中读取了所有编辑。
+
+在HA模式下，没有必要运行Secondary NameNode, CheckpointNode,  BackupNode。
+
+**增加zkfc角色(与NN同台)，通过zookeeper集群协调NN的主从选举和切换**
+
+自动故障转移增加了两个新的组件一个HDFS部署:ZooKeeper quorum和ZKFailoverController(ZKFC)。
+
+1. 自动故障转移需要依赖**ZooKeeper quorum**以下两个功能：
+   - **故障检测**：集群中的每个NameNode机器在ZooKeeper中维护一个持久会话。如果机器崩溃，ZooKeeper会话将过期，通知其他NameNode应该触发故障转移。
+   - **Active NameNode 选举**：ZooKeeper提供了一种简单的机制，可以将一个节点选择为活动节点。如果当前活动的NameNode崩溃，另一个节点可能会在ZooKeeper中获得一个特殊的独占锁，指示它应该成为下一个Active的节点。
+2. **ZKFailoverController** (ZKFC)是一个新的组件，它是一个ZooKeeper客户端，可以监视和管理NameNode的状态。运行NameNode的每台机器也运行ZKFC，而ZKFC负责以下内容：
+   - **健康监控** : ZKFC使用健康检查命令定期ping它的本地NameNode。只要NameNode以健康状态及时响应，ZKFC就认为节点是健康的。如果节点已经崩溃、冻结或以其他方式进入不健康状态，则运行状况监视器将将其标记为不健康。
+   - **ZooKeeper session管理**：当本地NameNode正常运行时，ZKFC在ZooKeeper中打开一个会话。如果本地NameNode是活动的，它还持有一个特殊的锁znode。这个锁使用了ZooKeeper对临时节点的支持;如果会话到期，锁节点将被自动删除。
+   - **ZooKeeper-based选举**：如果本地NameNode正常运行，并且ZKFC发现当前没有其他节点持有锁znode，那么它将自己尝试获取该锁。如果成功，则它赢得了选举，并负责运行故障转移以使其本地NameNode处于活动状态。故障转移过程类似于上面描述的手动故障转移:首先，如果需要，对前一个活动进行隔离，然后本地NameNode转换到活动状态。
+
+**事件回调机制** ： 
+
+**DN同时向NNs汇报block清单**
+
+为了提供快速的故障转移，Standby 节点还必须拥有集群块位置的最新信息。为了实现这一点，DataNodes配置了所有namenode的位置，并发送块位置信息和心跳给所有NameNode。
+
+![image-20200824151202439](./images/image-20200824151202439.png)
+
+安装说明路径：https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
+
+
+
+## 3.2 HDFS Federation
+
+![image-20200824164212736](./images/image-20200824164212736.png)
+
+HDFS有两个主要的层级：
+
+1. **Namespace**：
+   - 由目录、文件和块组成。
+   - 它支持所有与名称空间相关的文件系统操作，如创建、删除、修改和列出文件和目录。
+2. **Block Storage Service**：
+   - Block管理：NameNode负责
+   - Bolck存储：DataNode负责
+
+**元数据分治，复用DN存储**
+
+为了横向扩展名称服务，federation使用多个独立的Namenodes/namespaces。namenode是独立的，不需要彼此协调。Datanodes被所有的namenode用作块的公共存储。每个Datanode都使用集群中的所有namenode注册。Datanodes发送周期性的心跳和block报告。它们还处理来自namenode的命令。
+
+**Block Pool**
+
+块池是属于单个 namespace的一组块。Datanode为集群中的所有Block Pool存储块。每个块池都是独立管理的。这允许namespace为新块生成块id，而不需要与其他名称空间协调。Namenode失败不会阻止Datanode为集群中的其他Namenode提供服务。
+
+Namespace和block pool一起称为名称Namespace卷。它是一个独立的管理单位。当删除一个Namenode/namespace时，就会删除datanode上对应的块池。在集群升级期间，每个名称namespace卷作为一个单元被升级。
+
+**ClusterID**
+
+ClusterID标识符用于标识集群中的所有节点。当一个Namenode被格式化后，这个标识符将被提供或者自动生成。这个ID应该用于将其他namenode格式化到集群中。
+
+![image-20200824164257414](./images/image-20200824164257414.png)
+
+
+
+**使用Federation的优点**：
+
+1. **Namespace可伸缩性**：联合增加了Namespace的水平伸缩。通过允许在集群中添加更多的namenode，大型部署或使用大量小文件的部署可以从名称空间扩展中获益。
+2. **性能**：文件系统吞吐量不受单个Namenode的限制。向集群添加更多的namenode可扩展文件系统的读/写吞吐量。
+3. **隔离性**：单个Namenode在多用户环境中无法提供隔离。例如，实验应用程序可能会使Namenode过载，从而降低关键生产应用程序的速度。通过使用多个namenode，可以将不同类别的应用程序和用户隔离到不同的名称空间。
+
+Federation配置**向后兼容**，允许现有的单个Namenode配置无需任何更改即可工作。
+
+Federation添加了一个新的NameServiceID抽象。一个Namenode和它对应的secondary/backup/checkpointer nodes都属于一个NameServiceId。为了支持单个配置文件，Namenode和secondary/backup/checkpointer参数都以NameServiceID作为后缀。
+
+> **CAP原则**：
+>
+> Consistency：一致性
+>
+> Availability：可用性
+>
+> Partition tolerance：分区容忍性
+>
+> ![image-20200824151611174](./images/image-20200824151611174.png)
+
+# 4. HDFS 权限
+
+
+
+
+
+# 5. MapReduce
+
+Hadoop MapReduce是一个软件框架，可以轻松地编写在大型集群(数千个节点)上并行处理大量数据的应用程序，以一种可靠的、容错的方式。
+
+MapReduce框架由单个主ResourceManager、每个集群节点一个worker NodeManager和每个应用程序的MRAppMaster组成
+
+(input) `<k1, v1> ->` **map** `-> <k2, v2> ->` **combine** `-> <k2, v2> ->` **reduce** `-> <k3, v3>` (output)
+
+
+
+实现`Mapper`和 `Reducer`接口
+
+Mapper将输入key/value映射到一组中间key/value。
+
+```java
+import java.io.IOException;
+import java.util.StringTokenizer;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class WordCount {
+
+  public static class TokenizerMapper
+       extends Mapper<Object, Text, Text, IntWritable>{
+
+    private final static IntWritable one = new IntWritable(1);
+    private Text word = new Text();
+
+    public void map(Object key, Text value, Context context
+                    ) throws IOException, InterruptedException {
+      StringTokenizer itr = new StringTokenizer(value.toString());
+      while (itr.hasMoreTokens()) {
+        word.set(itr.nextToken());
+        context.write(word, one);
+      }
+    }
+  }
+
+  public static class IntSumReducer
+       extends Reducer<Text,IntWritable,Text,IntWritable> {
+    private IntWritable result = new IntWritable();
+
+    public void reduce(Text key, Iterable<IntWritable> values,
+                       Context context
+                       ) throws IOException, InterruptedException {
+      int sum = 0;
+      for (IntWritable val : values) {
+        sum += val.get();
+      }
+      result.set(sum);
+      context.write(key, result);
+    }
+  }
+
+  public static void main(String[] args) throws Exception {
+    Configuration conf = new Configuration();
+    Job job = Job.getInstance(conf, "word count");
+    job.setJarByClass(WordCount.class);
+    job.setMapperClass(TokenizerMapper.class);
+    job.setCombinerClass(IntSumReducer.class);
+    job.setReducerClass(IntSumReducer.class);
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(IntWritable.class);
+    FileInputFormat.addInputPath(job, new Path(args[0]));
+    FileOutputFormat.setOutputPath(job, new Path(args[1]));
+    System.exit(job.waitForCompletion(true) ? 0 : 1);
+  }
+}
+```
