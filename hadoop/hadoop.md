@@ -333,9 +333,31 @@ Federation添加了一个新的NameServiceID抽象。一个Namenode和它对应�
 
 # 4. HDFS 权限
 
+hdfs是一个文件系统，类似于unix、linux，有用户概念
 
+	hdfs没有相关命令和接口去创建用户
+		信任客户端 <- 默认情况使用的 操作系统提供的用户
+				扩展 kerberos LDAP  继承第三方用户认证系统
+	有超级用户的概念
+		linux系统中超级用户：root
+		hdfs系统中超级用户： 是namenode进程的启动用户
+	
+	有权限概念
+		hdfs的权限是自己控制的 来自于hdfs的超级用户
+**默认hdfs依赖操作系统上的用户和组**
 
+```shell
+#在namenode节点添加用户和组
+useradd good
+groupadd ooxx
+usermod -a -G ooxx good
+id good
 
+#从namenode所在节点，更新操作系统用户的group信息到hdfs
+hdfs dfsadmin -refreshUserToGroupsMappings
+```
+
+通过HADOOP_USER_NAME环境变量配置hdfs的用户
 
 # 5. MapReduce
 

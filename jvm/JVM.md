@@ -574,6 +574,8 @@ invoke
 
 # 8：GC基础知识
 
+https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/
+
 ## **1. 什么是垃圾**
 
 没有任何引用指向的一个对象或者多个对象（循环引用）
