@@ -1990,7 +1990,7 @@ mysql在创建表时使用partition by子句定义每个分区存放的数据，
 | socket=/var/lib/mysql/mysql.sock  | mysql.socket表示server和client在同一台服务器，并且使用localhost进行连接，就会使用socket进行连接 |
 | pid_file=/var/lib/mysql/mysql.pid | 存储mysql的pid                                               |
 | port=3306                         | mysql服务的端口号                                            |
-| default_storage_engine=InnoDB     | mysql存储引擎                                                |
+| default_storage_engine=InnoDB     | mysql默认存储引擎                                            |
 | skip-grant-tables                 | 当忘记mysql的用户名密码的时候，可以在mysql配置文件中配置该参数，跳过权限表验证，不需要密码即可登录mysql |
 
 ## character

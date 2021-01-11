@@ -54,7 +54,7 @@ INSERT INTO `mylock` (`id`, `NAME`) VALUES ('4', 'd');
 | 当前session插入或者更新表会提示错误<br />insert into mylock values(6,'f')<br />Table 'mylock' was locked with a READ lock and can't be updated<br />update mylock set name='aa' where id = 1;<br />Table 'mylock' was locked with a READ lock and can't be updated | 当前session插入数据会等待获得锁<br />insert into mylock values(6,'f'); |
 |                  释放锁<br />unlock tables;                  |                       获得锁，更新成功                       |
 
-**注意:**
+### 注意:
 
 **MyISAM在执行查询语句之前，会自动给涉及的所有表加读锁，在执行更新操作前，会自动给涉及的表加写锁，这个过程并不需要用户干预，因此用户一般不需要使用命令来显式加锁，上例中的加锁时为了演示效果。**
 
@@ -84,7 +84,7 @@ mysql> show status like 'table%';
 --如果Table_locks_waited的值比较高，则说明存在着较严重的表级锁争用情况。
 ```
 
-### **3、InnoDB锁**
+**InnoDB锁**
 
 **1、事务及其ACID属性**
 
@@ -132,14 +132,12 @@ mysql> show status like 'innodb_row_lock%';
 --如果发现锁争用比较严重，如InnoDB_row_lock_waits和InnoDB_row_lock_time_avg的值比较高
 ```
 
-mysql如果发现死锁，会自动释放锁
-
 **3、InnoDB的行锁模式及加锁方法**
 
 ​		**共享锁（s）**：又称读锁。允许一个事务去读一行，阻止其他事务获得相同数据集的排他锁。若事务T对数据对象A加上S锁，则事务T可以读A但不能修改A，其他事务只能再对A加S锁，而不能加X锁，直到T释放A上的S锁。这保证了其他事务可以读A，但在T释放A上的S锁之前不能对A做任何修改。
 ​		**排他锁（x）**：又称写锁。允许获取排他锁的事务更新数据，阻止其他事务取得相同的数据集共享读锁和排他写锁。若事务T对数据对象A加上X锁，事务T可以读A也可以修改A，其他事务不能再对A加任何锁，直到T释放A上的锁。
 
-​		mysql InnoDB引擎默认的修改数据语句：**update,delete,insert都会自动给涉及到的数据加上排他锁，select语句默认不会加任何锁类型**，如果加排他锁可以使用select …for update语句，加共享锁可以使用select … lock in share mode语句。**所以加过排他锁的数据行在其他事务上是不能修改数据的，也不能通过for update和lock in share mode锁的方式查询数据，但可以直接通过select …from…查询数据，因为普通查询没有任何锁机制。** 
+​		mysql InnoDB引擎默认的修改数据语句：**update,delete,insert都会自动给涉及到的数据加上排他锁，select语句默认不会加任何锁类型**，如果加排他锁可以使用select …for update语句，加共享锁可以使用select … lock in share mode语句。**所以加过排他锁的数据行在其他事务种是不能修改数据的，也不能通过for update和lock in share mode锁的方式查询数据，但可以直接通过select …from…查询数据，因为普通查询没有任何锁机制。** 
 
 **InnoDB行锁实现方式**
 
@@ -158,8 +156,6 @@ insert into tab_no_index values(1,'1'),(2,'2'),(3,'3'),(4,'4');
 |      select * from tab_no_index where id = 1 for update      |                                                              |
 |                                                              |     select * from tab_no_index where id = 2 for update;      |
 
-set autocommit=0关闭自动提交
-
 session1只给一行加了排他锁，但是session2在请求其他行的排他锁的时候，会出现锁等待。原因是在没有索引的情况下，innodb只能使用表锁。
 
 2、创建带索引的表进行条件查询，innodb使用的是行锁
@@ -176,9 +172,10 @@ insert into tab_with_index values(1,'1'),(2,'2'),(3,'3'),(4,'4');
 |     select * from tab_with_indexwhere id = 1 for update      |                                                              |
 |                                                              |     select * from tab_with_indexwhere id = 2 for update;     |
 
-3、由于mysql的行锁是针对索引加的锁，不是针对记录加的锁，所以虽然是访问不同行的记录，但是依然无法访问到具体的数据
+3、由于mysql的行锁是针对索引加的锁，不是针对记录加的锁，所以虽然是访问不同行的记录，但是如果是使用相同的索引键，是会出现冲突的。
 
 ```sql
+alter table tab_with_index drop index id;
 insert into tab_with_index  values(1,'4');
 ```
 

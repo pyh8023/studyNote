@@ -369,7 +369,53 @@ MapReduce框架由单个主ResourceManager、每个集群节点一个worker Node
 
 
 
-实现`Mapper`和 `Reducer`接口
+![image-20210108161953916](./images/image-20210108161953916.png)
+
+**Mapper**
+
+Mapper是以一条记录为单位做映射,将输入键值对<K,V>转化为一组中间键值对集合，中间数据不需要跟输入数据的类型一致，一个输入对可以映射为零个或多个输出对。
+
+负责映射、变换、过滤  ，1进N出，一个输入对可以映射为零个或多个输出对。
+
+**Reducer**
+
+Reducer以一组为单位做计算
+
+负责分解、缩小、归纳 ， 一组进N出
+
+
+
+## MR计算框架
+
+![image-20210108151434711](./images/image-20210108151434711.png)
+
+**MR**：数据以一条记录为单位经过map方法映射成KV，相同的key为一组，这一组数据调用一次reduce方法，在方法内**迭代**计算着一组数据。
+
+**split**   一个切片对应一个map运算,默认情况下等于block，也可以大于或者等于block，通过切分split来控制Mapper并行度，split与block的关系可以是1：1  、  1：N 、N:1，Mapper的数量跟split的数量一致
+
+**Mapper** : 每条记录调一次map函数，map输出的数据按照key排序后，可以将相同的key放在一起，
+
+**Reducer**：每组group数据调用一次reduce函数，reducer的数量由用户确定，mapper与reducer的对应关系可以是N:1、1:1、1：N、N:N
+
+**group** : 相同的key为一组group，一组数据只能去到一个Reducer
+
+**partition** : reducer的输出是分区partition，partition跟group(key)对象关系是1:1 、1：N 、N:N
+
+> **迭代器模**式 ：MR使用了迭代器模式
+>
+> 数据集一般是用迭代计算的方式
+
+
+
+![image-20210108151949848](./images/image-20210108151949848.png)
+
+每次buffer满了之后会写到一个文件中，buffer在写到文件之前先排序，map任务会生成很多小文件，小文件之间是内部有序，外部无序，
+
+
+
+
+
+## MapReduce代码实现
 
 Mapper将输入key/value映射到一组中间key/value。
 
@@ -436,3 +482,22 @@ public class WordCount {
   }
 }
 ```
+
+mapper实现通过 [Job.setMapperClass(Class)](https://hadoop.apache.org/docs/r2.10.1/api/org/apache/hadoop/mapreduce/Job.html)方法传递给Job，然后框架为该任务的InputSplit中的每个键/值对调用[map(WritableComparable, Writable, Context)](https://hadoop.apache.org/docs/r2.10.1/api/org/apache/hadoop/mapreduce/Mapper.html)方法。
+
+通过调用context.write(WritableComparable, Writable)方法收集输出对
+
+用户可以通过Job.setGroupingComparatorClass(Class)指定Comparator来控制分组。
+
+用户可以通过Job.setCombinerClass(Class)指定一个 `combiner`	，对中间输出进行本地聚合，这有助于减少从Mapper传输到Reducer的数据量。
+
+
+
+
+
+# 6. Yarn
+
+![yarn架构 ](./images/image-20210108152138477.png)
+
+
+
