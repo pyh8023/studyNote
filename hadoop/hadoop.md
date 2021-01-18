@@ -1,3 +1,5 @@
+
+
 # 1. 大数据初识
 
 > 学习知识的时候要去搞明白它存在的意义，这样学习成本才会低！
@@ -385,7 +387,11 @@ Reducer以一组为单位做计算
 
 
 
-## MR计算框架
+map和reduce是一种阻塞关系
+
+
+
+## 5.1 MR计算框架
 
 ![image-20210108151434711](./images/image-20210108151434711.png)
 
@@ -409,15 +415,148 @@ Reducer以一组为单位做计算
 
 ![image-20210108151949848](./images/image-20210108151949848.png)
 
-每次buffer满了之后会写到一个文件中，buffer在写到文件之前先排序，map任务会生成很多小文件，小文件之间是内部有序，外部无序，
+每次buffer满了之后会写到一个文件中，buffer在写到文件之前先排序，map任务会生成很多小文件，小文件之间是内部有序，外部无序，采用归并排序算法，合并成一个有序的文件。
 
 
 
+## 5.2 MR架构
+
+MapReduce采用主从模式
+
+Master：是整个集群的唯一的全局管理者，功能包括：作业管理、状态监控和任务调度等，即MapReduce中的JobTracker。
+
+Slave：负责任务的执行和任务状态的回报，即MapReduce中的TaskTracker。
+
+### 5.2.1 JobTracker  
+
+资源管理和任务调度，选择合适的dataNode
+
+### 5.2.2 TaskTracker 
+
+管理任务，资源汇报给JobTracker
 
 
-## MapReduce代码实现
 
-Mapper将输入key/value映射到一组中间key/value。
+### 5.2.3 处理流程
+
+1. client会根据每次的计算数据，咨询NN元数据（block），计算出split，得到切片split的清单，即可得到map的数量             
+
+    split是逻辑的，block是物理的，block有offset和locations，split和block有映射关系
+     \>>   结果： split包含偏移量offset，以及split对应的map任务应该移动到哪些节点（locations）       
+
+2. client生成计算程序未来运行时相关配置文件（xml文件）
+
+3. client会将用户的jar包、split清单、配置文件xml   上传的hdfs目录上（上传的文件、副本数）
+
+4. client会调用JobTracker，通知要启动一个计算程序了，告知文件存放在hdfs的位置
+
+   
+
+5. JobTracker收到启动程序之后，从hdfs中取回split清单
+
+6. JobTracker根据自己收到的TaskTracker汇报的资源，最终确定每一个split对象的map应该去到哪一个节点，【确定清单】
+
+7. TaskTracker再心跳的时候，JobTracker会取回分配给自己的任务信息
+
+   
+
+8. TaskTracker在心跳任务取回后，从hdfs中下载jar包、split清单、配置文件xml等资源到本地
+
+9. 最后启动任务描述中的MapTask和ReduceTask，最终，代码在某一个节点被启动，是通过Client上传，TaskTracker下载实现的（这一过程叫计算向数据移动）
+
+
+
+### 5.2.4 问题
+
+1. JobTracker存在单点故障
+
+2. JobTracker压力过大
+
+3. JobTracker集成了资源管理和任务调度，两者耦合
+
+   弊端：未来新的计算框架不能复用资源管理
+
+   1.  重复造轮子
+   2.  因为各自实现资源管理，但是他们部署在同一批硬件上，因为隔离，所以不能感知对方的使用，会产生资源争抢
+
+
+
+这些是hadoop 1.x的内容，目前已经被淘汰，2.x产生了yarn，替代了这种方式
+
+
+
+## 5.3 MapReduce代码实现
+
+### 5.3.1 hadoop配置
+
+1. mapred-site.xml配置
+
+   ```
+    <property>
+   	<name>mapreduce.framework.name</name>
+   	<value>yarn</value>
+    </property>
+   ```
+
+2. yarn-site.xml配置
+
+   ```xml
+   <property>
+   	<name>yarn.nodemanager.aux-services</name>
+       <value>mapreduce_shuffle</value>
+    </property>
+   
+   <property>
+     <name>yarn.resourcemanager.ha.enabled</name>
+     <value>true</value>
+   </property>
+   <property>
+     <name>yarn.resourcemanager.zk-address</name>
+     <value>node02:2181,node03:2181,node04:2181</value>
+   </property>
+   
+   <property>
+     <name>yarn.resourcemanager.cluster-id</name>
+     <value>mashibing</value>
+   </property>
+   
+   <property>
+     <name>yarn.resourcemanager.ha.rm-ids</name>
+     <value>rm1,rm2</value>
+   </property>
+   <property>
+     <name>yarn.resourcemanager.hostname.rm1</name>
+     <value>node03</value>
+   </property>
+   <property>
+     <name>yarn.resourcemanager.hostname.rm2</name>
+     <value>node04</value>
+   </property>
+   ```
+
+3. 修改配置，启动应用
+
+   ```
+   node01：
+      cd $HADOOP_HOME/etc/hadoop
+      cp mapred-site.xml.template   mapred-site.xml  
+      vi mapred-site.xml
+      vi yarn-site.xml
+      scp mapred-site.xml yarn-site.xml    node02:`pwd`
+      scp mapred-site.xml yarn-site.xml    node03:`pwd`
+      scp mapred-site.xml yarn-site.xml    node04:`pwd`
+      vi slaves  //可以不用管，搭建hdfs时候已经改过了。。。
+      start-yarn.sh
+   node03~04:
+      yarn-daemon.sh start resourcemanager
+   http://node03:8088
+   http://node04:8088
+   This is standby RM. Redirecting to the current active RM: http://node03:8088/
+   ```
+
+### 5.3.2 代码实现
+
+1.  Mapper将输入key/value映射到一组中间key/value。
 
 ```java
 import java.io.IOException;
@@ -491,13 +630,490 @@ mapper实现通过 [Job.setMapperClass(Class)](https://hadoop.apache.org/docs/r2
 
 用户可以通过Job.setCombinerClass(Class)指定一个 `combiner`	，对中间输出进行本地聚合，这有助于减少从Mapper传输到Reducer的数据量。
 
+### 5.3.3 运行程序
+
+程序有以下3种运行方式：
+
+1. 开发-> jar  -> 上传到集群中的某一个节点 -> hadoop jar  ooxx.jar  ooxx  in out
+
+```
+   hdfs dfs -mkdir -p   /data/wc/input
+   hdfs dfs -D dfs.blocksize=1048576  -put data.txt  /data/wc/input
+   cd  $HADOOP_HOME
+   cd share/hadoop/mapreduce
+   hadoop jar  hadoop-mapreduce-examples-2.6.5.jar   wordcount   /data/wc/input   /data/wc/output
+      1)webui:
+      2)cli:
+   hdfs dfs -ls /data/wc/output
+      -rw-r--r--   2 root supergroup          0 2019-06-22 11:37 /data/wc/output/_SUCCESS  //标志成功的文件
+      -rw-r--r--   2 root supergroup     788922 2019-06-22 11:37 /data/wc/output/part-r-00000  //数据文件
+    
+    其中除了可能生成part-r-00000文件，也可能生成part-m-00000，r表示是map+reduce task产生的输出，m表示只由是map task产生的输出
+    
+```
+
+2. 嵌入【linux，windows】（非hadoop jar）的集群方式  on yarn
+
+   ```
+   mapred-site.xml文件中的mapreduce.framework.name决定了集群运行方式
+   mapreduce.framework.name -> yarn
+   
+   //如果在windows运行，需要设置下面属性，让框架知道是windows异构平台运行
+   conf.set("mapreduce.app-submission.cross-platform","true");
+   
+   //指定jar包的路径，将会推送jar包到hdfs
+   job.setJar("C:\\Users\\Administrator\\IdeaProjects\\msbhadoop\\target\\hadoop-hdfs-1.0-0.1.jar");
+     
+   ```
+
+3. local，单机  一般自测时采用这种方式
+
+   ```
+   将的mapreduce.framework.name设置成local
+   mapreduce.framework.name -> local
+   
+   conf.set("mapreduce.app-submission.cross-platform","true"); //windows上必须配
+   
+   需要在windows部署hadoop,部署步骤如下：
+         1，在win的系统中部署我们的hadoop：
+            C:\usr\hadoop-2.6.5\hadoop-2.6.5
+         2，在我给你的资料中\hadoop-install\soft\bin  文件覆盖到 你部署的bin目录下
+            还要将hadoop.dll  复制到  c:\windwos\system32\
+         3，设置环境变量：HADOOP_HOME  设置为C:\usr\hadoop-2.6.5\hadoop-2.6.5 
+   ```
 
 
 
+> ```
+> bin/hadoop command [genericOptions] [commandOptions]
+> hadoop jar  ooxx.jar  ooxx   -D  ooxx=ooxx  inpath  outpath
+> args :   2类参数  genericOptions   commandOptions
+> 
+> 参数个性化
+>    在执行命令中加上参数，避免在代码中硬编码，实现参数个性化，使用其他更灵活
+>    
+>    //工具类帮我们把-D 等等的属性直接set到conf，会留下commandOptions
+>    GenericOptionsParser parser = new GenericOptionsParser(conf, args); 
+>    //othargs是除去hadoop属性之外的其他参数
+>    String[] othargs = parser.getRemainingArgs()
+> ```
+
+## 5.4 源码分析
+
+源码分析不是为了能写出一个MR框架，而是为了更好的使用和更充分的理解框架的细节
+
+不需要死记硬背代码，主要是理解技术细节和原理
+
+MapReduce是分布式计算框架，主要是追求3个方面：
+
+1. 计算向数据移动    
+
+2. 并行度、分治
+
+3. 数据本地化读取
+
+   
+
+我们跳过yarn的资源管理这个层次，只研究计算层的实现
+
+MR计算层分为三个环节：
+
+1.Client提交规划
+
+2.MapTask
+
+3.ReduceTask
+
+### 5.4.1 Client
+
+Client中没有计算发生，最重要的是：支撑了计算向数据移动和计算的并行度
+
+**Client提交规划**
+
+1.个性化配置程序
+
+- 加载配置文件
+- GenericOptionsParser解析参数配置
+
+2.提交程序到集群执行
+
+​	a) path检查
+
+​	b) computing splits
+
+​	c) upload resource
+
+​	d) submit Job
+
+```
+job.waitForCompletion(true)
+	JobSubmitter.submitJobInternal
+
+//validate the jobs output specs 
+checkSpecs(job);
+
+//将jar包和配置文件上传
+copyAndConfigureFiles(job, submitJobDir);
+
+// Create the splits for the job
+int maps = writeSplits(job, submitJobDir);
+	//重点看该方法
+	maps = writeNewSplits(job, jobSubmitDir);
+
+// Write job file to submit dir
+writeConf(conf, submitJobFile);
+```
+
+JobSubmitter.submitJobInternal方法的作用如下：
+
+1，Checking the input and output specifications of the job.
+2，Computing the InputSplits for the job.  // split  ->并行度和计算向数据移动就可以实现了
+3，Setup the requisite accounting information for the DistributedCache of the job, if necessary.
+4，Copying the job's jar and configuration to the map-reduce system directory on the distributed file-system.
+5，Submitting the job to the JobTracker and optionally monitoring it's status
+
+
+
+MR框架默认的输入格式化类： TextInputFormat < FileInputFormat < InputFormat
+                  getSplits()              
+
+默认情况下：   
+
+   minSize = 1
+   maxSize = Long.Max
+   blockSize = file
+
+ splitSize = Math.max(minSize, Math.min(maxSize, blockSize));  //默认split大小等于block大小
+      切片split是一个窗口机制：（调大split改小minSize，调小split改大maxSize）
+         如果我想得到一个比block大的split：
+
+   if ((blkLocations[i].getOffset() <= offset < blkLocations[i].getOffset() + blkLocations[i].getLength()))
+
+ split：解耦 存储层和计算层
+
+```
+FileSplit(Path file, long start, long length, String[] hosts,String[] inMemoryHosts)
+```
+
+​      1，file   切片归属文件
+​      2，offset  split起始位置的偏移量，偏移量是相对于文件的
+​      3，length  split的长度
+​      4，hosts   切片对应块的位置信息
+
+ 根据切片信息  ，支撑的计算向数据移动
+
+
+
+![image-20210115100300475](./images/image-20210115100300475.png)
+
+### 5.4.2 MapTask
+
+input ->  map  -> output
+
+```java
+MapTask.run(final JobConf job, final TaskUmbilicalProtocol umbilical)
+	runNewMapper(job, splitMetaInfo, umbilical, reporter);
+		//从hdfs中获取序列化的split文件，并创建InputSplit对象
+	    split = getSplitDetails(new Path(splitIndex.getSplitLocation()),splitIndex.getStartOffset());
+        
+        //返回LineRecordReader给input
+        RecordReader<INKEY,INVALUE> input =new NewTrackingRecordReader<INKEY,INVALUE>(split, inputFormat, reporter, taskContext);
+        	this.real = inputFormat.createRecordReader(split, taskContext);
+        		return new LineRecordReader(recordDelimiterBytes);
+   
+		input.initialize(split, mapperContext);  -> LineRecordReader
+			fileIn = fs.open(file);
+			fileIn.seek(start);
+			if (start != 0) {
+      			start += in.readLine(new Text(), 0, maxBytesToConsume(start));
+    		}
+       
+         //调用Mapper中的run方法    
+         mapper.run(mapperContext);
+
+Mapper.run(context)         
+	while (context.nextKeyValue()) {
+        map(context.getCurrentKey(), context.getCurrentValue(), context);
+    }
+
+context.write(K key, V value)
+	collector.collect(key, value,partitioner.getPartition(key, value, partitions));
+```
+
+**input** :(split+format)  通用的知识，未来的spark底层也是
+   来自于我们的输入格式化类给我们实际返回的记录读取器对象
+
+ **LineRecordreader**  
+
+```
+TextInputFormat->LineRecordreader
+               split: file , offset , length
+               initialize():
+                  in = fs.open(file).seek(offset)
+                  除了第一个切片对应的map，之后的map都在init环节， 从切片包含的数据中，让出第一行，
+                  并把切片的起始更新为切片的第二行。
+                  换言之，前一个map会多读取一行，来弥补hdfs把数据切割的问题~！
+               nextKeyValue():
+				  key.set(pos);
+				  in.readLine(value, maxLineLength, maxBytesToConsume(pos));
+               	  1，读取数据中的一条记录对key，value赋值
+                  2，返回布尔值
+               getCurrentKey():  直接返回key
+               getCurrentValue(): 直接放回value
+```
+
+**output**
+
+```java
+   output = new NewOutputCollector(taskContext, job, umbilical, reporter);
+   NewOutputCollector
+      partitions = jobContext.getNumReduceTasks();
+      partitioner
+	     当partitions>1时，partitioner为mapreduce.job.partitioner.class属性设置的partitioner类，
+         用户没设置，就默认为HashPartitioner -> (key.hashCode() & Integer.MAX_VALUE) % numReduceTasks
+         partitions=1时分区数返回0
+      collector  ——>  MapOutputBuffer
+            *：
+               map输出的KV会序列化成字节数组，算出分区P，最中是3元组：K,V,P
+               buffer是使用的环形缓冲区：
+                  1，本质还是线性字节数组
+                  2，赤道，两端方向放KV,索引
+                  3，索引：是固定宽度：16B：4个int
+                     a)P  分区编号
+                     b)KS K开始位置
+                     c)VS V开始位置
+                     d)VL V长度
+                  5,如果数据填充到阈值：80%，启动线程：
+                     快速排序80%数据，同时map输出的线程向剩余的空间写
+                     快速排序的过程：是比较key排序，但是移动的是索引
+                  6，最终，溢写时只要按照排序的索引，卸下的文件中的数据就是有序的
+                     注意：排序是二次排序（索引里有P，排序先比较索引的P决定顺序，然后在比较相同P中的Key的顺序）
+                        分区有序  ： 最后reduce拉取是按照分区的
+                        分区内key有序： 因为reduce计算是按分组计算，分组的语义（相同的key排在了一起）
+                  7，调优：combiner
+                     1，其实就是一个map里的reduce
+                        按组统计
+                     2，发生在哪个时间点：
+                        a)内存溢写数据之前排序之后
+                           溢写的io变少~！
+                        b)最终map输出结束，过程中，buffer溢写出多个小文件（内部有序）
+                           minSpillsForCombine = 3
+                           map最终会把溢写出来的小文件合并成一个大文件：
+                              避免小文件的碎片化对未来reduce拉取数据造成的随机读写
+                           也会触发combine
+                     3，combine注意
+                        必须幂等
+                        例子：
+                           1，求和计算
+                           1，平均数计算
+                              80：数值和，个数和
+            init():
+			   默认参数如下：
+               spillper = 0.8 
+               sortmb = 100M 
+               sorter = QuickSort
+               comparator = job.getOutputKeyComparator();
+                        1，优先取用户覆盖的自定义排序比较器
+                        2，保底，取key这个类型自身的比较器
+               combiner ？参考reduce
+                  minSpillsForCombine = 3
+
+               SpillThread  溢写线程
+                  sortAndSpill()
+                     if (combinerRunner == null)
+```
+
+![image-20210115100342263](./images/image-20210115100342263.png)
+
+### 5.4.3 ReduceTask
+
+```
+input ->  reduce  -> output
+map:run:   while (context.nextKeyValue())
+         一条记录调用一次map
+reduce:run:    while (context.nextKey())
+         一组数据调用一次reduce
+
+ReduceTask执行步骤：
+   1，shuffle：  洗牌（相同的key被拉取到一个分区），拉取数据
+   2，sort：  整个MR框架中只有map端是无序到有序的过程，用的是快速排序
+         reduce这里的所谓的sort其实
+         你可以想成就是对着map排好序的一堆小文件做归并排序
+      grouping comparator
+      1970-1-22 33   bj
+      1970-1-8  23   sh
+         排序比较啥：年，月，温度，，且温度倒序
+         分组比较器：年，月
+   3，reduce：
+
+run：
+   rIter = shuffle。。//reduce拉取回属于自己的数据，并包装成迭代器~！真@迭代器
+      file(磁盘上)-> open -> readline -> hasNext() next()
+      时时刻刻想：我们做的是大数据计算，数据可能撑爆内存~！
+   comparator = job.getOutputValueGroupingComparator();
+         1，取用户设置的分组比较器
+         2，取getOutputKeyComparator();
+            1，优先取用户覆盖的自定义排序比较器
+            2，保底，取key这个类型自身的比较器
+         #：分组比较器可不可以复用排序比较器
+            什么叫做排序比较器：返回值：-1,0,1
+            什么叫做分组比较器：返回值：布尔值，false/true
+            排序比较器可不可以做分组比较器：可以的
+
+         mapTask             reduceTask
+                     1，取用户自定义的分组比较器
+         1，用户定义的排序比较器      2，用户定义的排序比较器
+         2，取key自身的排序比较器 3，取key自身的排序比较器
+         组合方式：
+            1）不设置排序和分组比较器：
+               map：取key自身的排序比较器
+               reduce：取key自身的排序比较器
+            2）设置了排序
+               map：用户定义的排序比较器
+               reduce：用户定义的排序比较器
+            3）设置了分组
+               map：取key自身的排序比较器
+               reduce：取用户自定义的分组比较器
+            4）设置了排序和分组
+               map：用户定义的排序比较器
+               reduce：取用户自定义的分组比较器
+         做减法：结论，框架很灵活，给了我们各种加工数据排序和分组的方式
+   
+   ReduceContextImpl
+      input = rIter  真@迭代器
+      hasMore = true
+      nextKeyIsSame = false
+      iterable = ValueIterable
+      iterator = ValueIterator
+
+      ValueIterable
+         iterator()
+            return iterator;
+      ValueIterator  假@迭代器  嵌套迭代器
+         hasNext()
+            return firstValue || nextKeyIsSame;
+         next()
+            nextKeyValue();
+
+      nextKey()
+         nextKeyValue()
+
+      nextKeyValue()
+         1，通过input取数据，对key和value赋值
+         2，返回布尔值
+         3，多取一条记录判断更新nextKeyIsSame
+            窥探下一条记录是不是还是一组的！
+      
+      getCurrentKey()
+         return key
+
+      getValues()
+         return iterable;
+
+   **：
+      reduceTask拉取回的数据被包装成一个迭代器
+      reduce方法被调用的时候，并没有把一组数据真的加载到内存
+         而是传递一个迭代器-values
+         在reduce方法中使用这个迭代器的时候：
+            hasNext方法判断nextKeyIsSame：下一条是不是还是一组
+            next方法：负责调取nextKeyValue方法，从reduceTask级别的迭代器中取记录，
+               并同时更新nextKeyIsSame
+      以上的设计艺术：
+         充分利用了迭代器模式：
+            规避了内存数据OOM的问题
+            且：之前不是说了框架是排序的
+               所以真假迭代器他们只需要协作，一次I/O就可以线性处理完每一组数据~！
+               
+               
+               
+```
 
 # 6. Yarn
 
+## 6.1 yarn架构
+
 ![yarn架构 ](./images/image-20210108152138477.png)
+
+**ResourceManager** :  主节点  负责资源管理
+
+**NodeManager** : 从节点    向RM汇报心跳，提交自己的资源情况
+
+**AppMaster** : 是JobTracker的阉割版，不带资源管理，JobTracker是常服务，没有任务时也在运行
+
+​					AppMaster 只有任务调度，变成按需启动，其实也是一个container
+
+**Container** : 会注册到app master，即是物理的也是逻辑的，逻辑上是一个对象，有多大内存，cpu，io等属性，物理上会启动一个jvm进程，采用下面方式避免container资源超额：
+
+​		1. NM有线程监控container资源情况，超额就会由NM直接kill 进程
+
+​		2. cgroup内核级技术，在启动jvm进程，由内核约束死资源
+
+
+
+**MR运行**  MapReduce on yarn 
+
+1. MR-Cli切片清单计算，将切片清单，配置文件和jar上传到hdfs，通知RM申请AppMaster
+2. RM挑一个不忙的节点通知NM启动一个container，在里面放射一个AppMaster
+3. 启动AppMaster，从hdfs下载切片清单，向RM申请container
+4. RM根据掌握的资源情况得到一个确定清单，通知NM启动container
+5. container启动后会反向注册到AppMaster进程，注册成功后，app master将会知道自己可供调度的资源
+6. AppMaster将任务Task发送给container
+7. container从hdfs上下载jar，通过反射Task类为对象，调用方法执行，其结果就是我们的业务逻辑代码的执行计算
+8. 框架有Task失败重试的机制，如果container挂了，AppMaster会通知RM，RM重新申请container，AppMaster挂了也一样
+
+
+
+## 6.2 MapReduce问题解决   
+
+1. 单点故障（曾经是全局的，JT挂了，整个计算层没有了调度）      
+
+    每一个app 有一个自己的AppMaster 调度    
+
+    Yarn支持AppMaster 失败重试
+
+2. 压力过大    
+
+   Yarn 中每个计算程序自有AppMaster，每个AppMaster只负责自己计算程序的任务调度，轻量了
+
+   AppMaster是在不同的节点中启动的，可以承担更大的负载
+
+3. 集成了【资源管理和任务调度】，两者耦合
+
+   因为Yarn只是资源管理，不负责具体的任务调度
+
+   只要计算框架继承yarn的AppMaster，大家都可以使用一个统一视图的资源层
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
