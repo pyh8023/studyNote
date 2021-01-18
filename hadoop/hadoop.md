@@ -622,13 +622,17 @@ public class WordCount {
 }
 ```
 
+输入key类型可以自定义，自定义的key要实现WritableComparable接口
+
 mapper实现通过 [Job.setMapperClass(Class)](https://hadoop.apache.org/docs/r2.10.1/api/org/apache/hadoop/mapreduce/Job.html)方法传递给Job，然后框架为该任务的InputSplit中的每个键/值对调用[map(WritableComparable, Writable, Context)](https://hadoop.apache.org/docs/r2.10.1/api/org/apache/hadoop/mapreduce/Mapper.html)方法。
 
 通过调用context.write(WritableComparable, Writable)方法收集输出对
 
-用户可以通过Job.setGroupingComparatorClass(Class)指定Comparator来控制分组。
+用户可以通过Job.setGroupingComparatorClass(Class)指定Comparator来控制分组，Comparator可继承WritableComparator。
 
 用户可以通过Job.setCombinerClass(Class)指定一个 `combiner`	，对中间输出进行本地聚合，这有助于减少从Mapper传输到Reducer的数据量。
+
+job.setNumReduceTasks(num)可以设置Reduce任务的数量，默认是1，如果设置成0，就不会执行reduce任务，直接输出map输出结果
 
 ### 5.3.3 运行程序
 
@@ -960,10 +964,10 @@ run：
             什么叫做分组比较器：返回值：布尔值，false/true
             排序比较器可不可以做分组比较器：可以的
 
-         mapTask             reduceTask
-                     1，取用户自定义的分组比较器
-         1，用户定义的排序比较器      2，用户定义的排序比较器
-         2，取key自身的排序比较器 3，取key自身的排序比较器
+         mapTask            			 reduceTask
+                     				1，取用户自定义的分组比较器
+         1，用户定义的排序比较器        2，用户定义的排序比较器
+         2，取key自身的排序比较器      3，取key自身的排序比较器
          组合方式：
             1）不设置排序和分组比较器：
                map：取key自身的排序比较器
