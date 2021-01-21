@@ -20,7 +20,7 @@ explain [extended] query
 ​		（2）where仅对本表字段做条件过滤
 
 ```sql
---查看Hive的数据抓取策略
+--查看Hive的数据抓取策略，设置成more会优化
 Set hive.fetch.task.conversion=none/more;
 ```
 
@@ -34,6 +34,8 @@ set hive.exec.mode.local.auto=true;
 ```
 
 ​		注意：要想使用Hive的本地模式，加载数据文件大小不能超过128M,如果超过128M,就算设置了本地模式，也会按照集群模式运行。
+
+​				  适合开发测试阶段使用，执行速度较快，不适合生产环境使用
 
 ```sql
 --设置读取数据量的大小限制
@@ -52,7 +54,7 @@ set hive.exec.parallel=true;
 ​		注意：Hive的并行度并不是无限增加的，在一次SQL计算中，可以通过以下参数来设置并行的job的个数
 
 ```sql
---设置一次SQL计算允许并行执行的job个数的最大值
+--设置一次SQL计算允许并行执行的job个数的最大值，默认是8
 set hive.exec.parallel.thread.number
 ```
 
@@ -129,7 +131,7 @@ hive.groupby.mapaggr.checkinterval：
 hive.map.aggr.hash.min.reduction： 
 --map端聚合使用的内存的最大值
 hive.map.aggr.hash.percentmemory： 
---是否对GroupBy产生的数据倾斜做优化，默认为false
+--是否对GroupBy产生的数据倾斜做优化，默认为false(!重要)
 hive.groupby.skewindata
 ```
 
@@ -146,6 +148,12 @@ set hive.merge.mapredfiles=true;
 --合并文件的大小：
 set hive.merge.size.per.task=256*1000*1000
 ```
+
+### 10、去重统计
+
+数据量小的时候无所谓，数据量大的情况下，由于COUNT DISTINCT操作需要用一个Reduce Task来完成，
+这一个Reduce需要处理的数据量太大，就会导致整个Job很难完成，一般COUNT DISTINCT使用先GROUP
+BY再COUNT的方式替换
 
 ### 10、合理设置Map以及Reduce的数量
 

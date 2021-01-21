@@ -47,3 +47,4 @@
 ##### 6、在node03上执行hive --service metastore,启动hive的元数据服务，是阻塞式窗口
 
 ##### 7、在node04上执行hive，进入到hive的cli窗口
+

@@ -23,7 +23,7 @@
           [COLLECTION ITEMS TERMINATED BY char] 
           [MAP KEYS TERMINATED BY char] 
           [LINES TERMINATED BY char] 
-		: SERDE serde_name [WITH SERDEPROPERTIES (property_name=property_value, 										            property_name=property_value, ...)]
+		: SERDE serde_name [WITH SERDEPROPERTIES (property_name=property_value,property_name=property_value, ...)]
 ```
 
 应用案例：
@@ -69,7 +69,7 @@
 	    agent STRING)
 	  ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
 	  WITH SERDEPROPERTIES (
-	    "input.regex" = "([^ ]*) ([^ ]*) ([^ ]*) \\[(.*)\\] \"(.*)\" (-|[0-9]*) (-|[0-		9]*)"
+	    "input.regex" = "([^ ]*) ([^ ]*) ([^ ]*) \\[(.*)\\] \"(.*)\" (-|[0-9]*) (-|[0-9]*)"
 	  )
   STORED AS TEXTFILE;
 --加载数据

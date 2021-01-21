@@ -1,6 +1,8 @@
 # **Hive函数**
 
-​	Hive中提供了非常丰富的运算符和内置函数支撑，具体操作如下： 
+官网	https://cwiki.apache.org/confluence/display/Hive/LanguageManual+UDF
+
+Hive中提供了非常丰富的运算符和内置函数支撑，具体操作如下： 
 
 ### 1.内置运算符
 

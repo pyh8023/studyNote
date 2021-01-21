@@ -28,7 +28,7 @@ LATERAL VIEW explode(address) myTable2 AS myCol2, myCol3;
 ​		1、不支持物化视图
 ​		2、只能查询，不能做加载数据操作
 ​		3、视图的创建，只是保存一份元数据，查询视图时才执行对应的子查询
-​		4、view定义中若包含了ORDER BY/LIMIT语句，当查询视图时也进行ORDER BY/LIMIT语句操作，view当中			  定义的优先级更高
+​		4、view定义中若包含了ORDER BY/LIMIT语句，当查询视图时也进行ORDER BY/LIMIT语句操作，view当中定义的优先级更高
 ​		5、view支持迭代视图
 
 ##### 	3、Hive视图语法
@@ -57,11 +57,11 @@ LATERAL VIEW explode(address) myTable2 AS myCol2, myCol3;
 ```sql
 --创建索引：
 	create index t1_index on table psn2(name) 
-	as 'org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler' with deferred 			rebuild in table t1_index_table;
+	as 'org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler' with deferred rebuild in table t1_index_table;
 --as：指定索引器；
 --in table：指定索引表，若不指定默认生成在default__psn2_t1_index__表中
 	create index t1_index on table psn2(name) 
-	as 'org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler' with deferred 			rebuild;
+	as 'org.apache.hadoop.hive.ql.index.compact.CompactIndexHandler' with deferred rebuild;
 --查询索引
 	show index on psn2;
 --重建索引（建立索引之后必须重建索引才能生效）

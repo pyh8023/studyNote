@@ -21,6 +21,10 @@
 	set hive.exec.max.dynamic.partitions;
 --所有的mr job允许创建的文件的最大数量(100000)	
 	set hive.exec.max.created.files;
+	
+	
+	cat /proc/sys/fs/file-max  OS同时能打开的文件最大数量,一般1G内存对应10万个文件
+	ulimit -a   中的open files是每个进程最多打开的文件数量
 ```
 
 ##### 		3、hive动态分区语法
@@ -52,6 +56,13 @@
 ```sql
 --设置hive支持分桶
 	set hive.enforce.bucketing=true;
+	默认：false；设置为true之后，mr运行时会根据bucket的个数自动分配reduce task个数。（用户也可以通过mapred.reduce.tasks自己设置reduce任务个数，但分桶时不推荐使用）
+▪ 注意：一次作业产生的桶（文件数量）和reduce task个数一致。
+```
+
+```
+CREATE TABLE psnbucket( id INT, name STRING, age INT) CLUSTERED BY (age) INTO 4 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
 ```
 
 ##### 		3、Hive分桶的抽样查询
@@ -62,6 +73,6 @@
 --TABLESAMPLE语法：
 	TABLESAMPLE(BUCKET x OUT OF y)
 		x：表示从哪个bucket开始抽取数据
-		y：必须为该表总bucket数的倍数或因子
+		y：必须为该表总bucket数的倍数或因子，所取数据的数量为桶的数量/y
 ```
 

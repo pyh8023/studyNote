@@ -27,30 +27,32 @@
 
 #### 2、数据库表的基本操作
 
+hive是读时检查，不是写时检查
+
 ```sql
-/*
 	创建表的操作
 		基本语法：
-		CREATE [TEMPORARY] [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name    -- 			(Note: TEMPORARY available in Hive 0.14.0 and later)
+		CREATE [TEMPORARY] [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name    -- (Note: TEMPORARY available in Hive 0.14.0 and later)
   		[(col_name data_type [COMMENT col_comment], ... [constraint_specification])]
   		[COMMENT table_comment]
   		[PARTITIONED BY (col_name data_type [COMMENT col_comment], ...)]
-  		[CLUSTERED BY (col_name, col_name, ...) [SORTED BY (col_name [ASC|DESC], ...)] 				INTO num_buckets BUCKETS]
-  		[SKEWED BY (col_name, col_name, ...)                  -- (Note: Available in Hive 			0.10.0 and later)]
+  		[CLUSTERED BY (col_name, col_name, ...) [SORTED BY (col_name [ASC|DESC], ...)] INTO num_buckets BUCKETS]
+  		[SKEWED BY (col_name, col_name, ...)                  -- (Note: Available in Hive 0.10.0 and later)]
      	ON ((col_value, col_value, ...), (col_value, col_value, ...), ...)
      	[STORED AS DIRECTORIES]
   		[
    			[ROW FORMAT row_format] 
    			[STORED AS file_format]
-     		| STORED BY 'storage.handler.class.name' [WITH SERDEPROPERTIES (...)]  -- 				(Note: Available in Hive 0.6.0 and later)
+     		| STORED BY 'storage.handler.class.name' [WITH SERDEPROPERTIES (...)]  -- (Note: Available in Hive 0.6.0 and later)
   		]
   		[LOCATION hdfs_path]
-  		[TBLPROPERTIES (property_name=property_value, ...)]   -- (Note: Available in Hive 			0.6.0 and later)
+  		[TBLPROPERTIES (property_name=property_value, ...)]   -- (Note: Available in Hive 0.6.0 and later)
   		[AS select_statement];   -- (Note: Available in Hive 0.5.0 and later; not 					supported for external tables)
- 
-		CREATE [TEMPORARY] [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
-  			LIKE existing_table_or_view_name
-  		[LOCATION hdfs_path];
+  		
+  		CREATE [TEMPORARY] [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
+  	     LIKE existing_table_or_view_name [LOCATION hdfs_path];
+
+
  		复杂数据类型
 		data_type
   		 : primitive_type
@@ -87,7 +89,7 @@
  		 : STRUCT < col_name : data_type [COMMENT col_comment], ...>
  
 		union_type
-  		 : UNIONTYPE < data_type, data_type, ... >  -- (Note: Available in Hive 0.7.0 and 			later)
+  		 : UNIONTYPE < data_type, data_type, ... >  -- (Note: Available in Hive 0.7.0 and later)
  		行格式规范
 		row_format
  		 : DELIMITED [FIELDS TERMINATED BY char [ESCAPED BY char]] [COLLECTION ITEMS 				TERMINATED BY char]
@@ -109,7 +111,9 @@
  		 : [, PRIMARY KEY (col_name, ...) DISABLE NOVALIDATE ]
  		   [, CONSTRAINT constraint_name FOREIGN KEY (col_name, ...) REFERENCES 					table_name(col_name, ...) DISABLE NOVALIDATE 
 */
+```
 
+```sql
 --创建普通hive表（不包含行定义格式）
 	create table psn
 	(
@@ -163,19 +167,23 @@
 	collection items terminated by '-'
 	map keys terminated by ':'
 	location '/data';
-/*
-	在之前创建的表都属于hive的内部表（psn,psn2,psn3）,而psn4属于hive的外部表，
-	内部表跟外部表的区别：
-		1、hive内部表创建的时候数据存储在hive的默认存储目录中，外部表在创建的时候需要制定额外的目录
-		2、hive内部表删除的时候，会将元数据和数据都删除，而外部表只会删除元数据，不会删除数据
-	应用场景:
-		内部表:需要先创建表，然后向表中添加数据，适合做中间表的存储
-		外部表：可以先创建表，再添加数据，也可以先有数据，再创建表，本质上是将hdfs的某一个目录的数据跟				hive的表关联映射起来，因此适合原始数据的存储，不会因为误操作将数据给删除掉
-*/	
-/*
-	hive的分区表:
-		hive默认将表的数据保存在某一个hdfs的存储目录下，当需要检索符合条件的某一部分数据的时候，需要全量		遍历数据，io量比较大，效率比较低，因此可以采用分而治之的思想，将符合某些条件的数据放置在某一个目录		 ，此时检索的时候只需要搜索指定目录即可，不需要全量遍历数据。
-*/
+```
+
+##### 内部表和外部表
+
+​	在之前创建的表都属于hive的内部表（psn,psn2,psn3）,而psn4属于hive的外部表，
+​	内部表跟外部表的区别：
+​		1、hive内部表创建的时候数据存储在hive的默认存储目录中，外部表在创建的时候需要指定额外的目录
+​		2、hive内部表删除的时候，会将元数据和数据都删除，而外部表只会删除元数据，不会删除数据
+​	应用场景:
+​		内部表:需要先创建表，然后向表中添加数据，适合做中间表的存储
+​		外部表：可以先创建表，再添加数据，也可以先有数据，再创建表，本质上是将hdfs的某一个目录的数据跟hive的表关联映射起来，因此适合原始数据的存储，不会因为误操作将数据给删除掉
+
+##### hive的分区表
+
+​		hive默认将表的数据保存在某一个hdfs的存储目录下，当需要检索符合条件的某一部分数据的时候，需要全量遍历数据，io量比较大，效率比较低，因此可以采用分而治之的思想，将符合某些条件的数据放置在某一个目录，此时检索的时候只需要搜索指定目录即可，不需要全量遍历数据。
+
+```sql
 --创建单分区表
 	create table psn5
 	(
@@ -204,7 +212,7 @@
 	map keys terminated by ':';	
 /*
 	注意：
-		1、当创建完分区表之后，在保存数据的时候，会在hdfs目录中看到分区列会成为一个目录，以多级目录的形式			  存在
+		1、当创建完分区表之后，在保存数据的时候，会在hdfs目录中看到分区列会成为一个目录，以多级目录的形式存在
 		2、当创建多分区表之后，插入数据的时候不可以只添加一个分区列，需要将所有的分区列都添加值
 		3、多分区表在添加分区列的值得时候，与顺序无关，与分区表的分区列的名称相关，按照名称就行匹配
 */	
@@ -217,10 +225,15 @@
 		1、添加分区列的值的时候，如果定义的是多分区表，那么必须给所有的分区列都赋值
 		2、删除分区列的值的时候，无论是单分区表还是多分区表，都可以将指定的分区进行删除
 */
-/*
-	修复分区:
-		在使用hive外部表的时候，可以先将数据上传到hdfs的某一个目录中，然后再创建外部表建立映射关系，如果在上传数据的时候，参考分区表的形式也创建了多级目录，那么此时创建完表之后，是查询不到数据的，原因是分区的元数据没有保存在mysql中，因此需要修复分区，将元数据同步更新到mysql中，此时才可以查询到元数据。具体操作如下：
-*/	
+
+```
+
+##### 修复分区
+
+​	在使用hive外部表的时候，可以先将数据上传到hdfs的某一个目录中，然后再创建外部表建立映射关系，如果在上传数据的时候，参考分区表的形式也创建了多级目录，那么此时创建完表之后，是查询不到数据的，原因是分区的元数据没有保存在mysql中，因此需要修复分区，将元数据同步更新到mysql中，此时才可以查询到元数据。具体操作如下：
+
+```sql
+
 --在hdfs创建目录并上传文件
 	hdfs dfs -mkdir /msb
 	hdfs dfs -mkdir /msb/age=10
@@ -247,13 +260,11 @@
 	msck repair table psn7;
 --查询结果（有数据）
 	select * from psn7;
-/*
-	问题：
-		以上面的方式创建hive的分区表会存在问题，每次插入的数据都是人为指定分区列的值，我们更加希望能够根		  据记录中的某一个字段来判断将数据插入到哪一个分区目录下，此时利用我们上面的分区方式是无法完成操作			的，需要使用动态分区来完成相关操作，现在学的知识点无法满足，后续讲解。
-*/
-
-
 ```
+
+
+问题：
+		以上面的方式创建hive的分区表会存在问题，每次插入的数据都是人为指定分区列的值，我们更加希望能够根据记录中的某一个字段来判断将数据插入到哪一个分区目录下，此时利用我们上面的分区方式是无法完成操作的，需要使用动态分区来完成相关操作，现在学的知识点无法满足，后续讲解。
 
 ## Hive DML
 
@@ -400,8 +411,8 @@
 		<value>1</value>
 	</property>
 //操作语句
-	create table test_trancaction (user_id Int,name String) clustered by (user_id) into 3 			buckets stored as orc TBLPROPERTIES ('transactional'='true');
-	create table test_insert_test(id int,name string) row format delimited fields 				  TERMINATED BY ',';
+	create table test_trancaction (user_id Int,name String) clustered by (user_id) into 3 buckets stored as orc TBLPROPERTIES ('transactional'='true');
+	create table test_insert_test(id int,name string) row format delimited fields  TERMINATED BY ',';
 	insert into test_trancaction select * from test_insert_test;
 	update test_trancaction set name='jerrick_up' where id=1;
 //数据文件

@@ -1,5 +1,7 @@
 # Hive权限管理
 
+官网 https://cwiki.apache.org/confluence/display/Hive/LanguageManual+Authorization
+
 ##### 1、hive授权模型介绍
 
 ![hive授权模型](..\images\hive授权模型.png)
@@ -65,9 +67,36 @@ SET ROLE (role_name|ALL|NONE);
 SHOW CURRENT ROLES;  
 -- 查看所有存在的角色
 SHOW ROLES;  
+
+-- 赋予权限
+grant admin to role test with admin option;
+-- 查询角色权限
+show role grant role test;
+
+
+GRANT
+    priv_type [, priv_type ] ...
+    ON table_or_view_name
+    TO principal_specification [, principal_specification] ...
+    [WITH GRANT OPTION];
+
+
+REVOKE [GRANT OPTION FOR]
+    priv_type [, priv_type ] ...
+    ON table_or_view_name
+    FROM principal_specification [, principal_specification] ... ;
+ 
+principal_specification
+  : USER user
+  | ROLE role
+  
+priv_type
+  : INSERT | SELECT | UPDATE | DELETE | ALL
 ```
 
 ##### 6、Hive权限分配图
+
+
 
 | Action                                          | Select       | Insert     | Update | Delete            | Owership        | Admin | URL Privilege(RWX Permission + Ownership)     |
 | ----------------------------------------------- | ------------ | ---------- | ------ | ----------------- | --------------- | ----- | --------------------------------------------- |

@@ -8,7 +8,7 @@
 
 | **命名空间** | **读写权限** | **含义**                                                     |
 | ------------ | ------------ | ------------------------------------------------------------ |
-| hiveconf     | 可读写       | hive-site.xml当中的各配置变量例：hive --hiveconf hive.cli.print.header=true |
+| hiveconf     | 可读写       | hive-site.xml当中的各配置变量例：hive --hiveconf hive.cli.print.header=true，只在当前会话有效 |
 | system       | 可读写       | 系统变量，包含JVM运行参数等例：system:user.name=root         |
 | env          | 只读         | 环境变量例：env：JAVA_HOME                                   |
 | hivevar      | 可读写       | 例：hive -d val=key                                          |
@@ -43,9 +43,9 @@
 
 ​		4、hive参数初始化设置
 
-​			在当前用户的家目录下创建**.hiverc**文件，在当前文件中设置hive参数的命令，每次进入hive cli的时候，都会加载.hiverc的文件，执行文件中的命令。
+​			在当前用户的home目录下创建**.hiverc**文件，在当前文件中设置hive参数的命令，每次进入hive cli的时候，都会加载.hiverc的文件，执行文件中的命令。
 
-​			**注意：在当前用户的家目录下还会存在.hivehistory文件，此文件中保存了hive cli中执行的所有命令**
+​			**注意：在当前用户的home目录下还会存在.hivehistory文件，此文件中保存了hive cli中执行的所有命令**
 
 ### 2、hive运行方式
 
@@ -88,7 +88,8 @@
 
 ​	4、hive JDBC访问方式，之前讲过，不再赘述
 
-​	5、Hive GUI方式
+​	5、Hive GUI方式(hive2.2.0之后已经弃用)
 
-​	![hive hwi](..\images\hive hwi.png)
+![hive hwi](..\images\hive hwi.png)
 
+ hue hive图像化展示工具

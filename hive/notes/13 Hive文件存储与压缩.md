@@ -30,7 +30,8 @@
 
 | 参数                                              | 默认值                                                       | 阶段        | 建议                                         |
 | ------------------------------------------------- | ------------------------------------------------------------ | ----------- | -------------------------------------------- |
-| io.compression.codecs   （在core-site.xml中配置） | org.apache.hadoop.io.compress.DefaultCodec, org.apache.hadoop.io.compress.GzipCodec, org.apache.hadoop.io.compress.BZip2Codec,org.apache.hadoop.io.compress.Lz4Codec | 输入压缩    | Hadoop使用文件扩展名判断是否支持某种编解码器 |
+| io.compression.codecs   （在core-site.xml中配置） | org.apache.hadoop.io.compress.DefaultCodec, org.apache.hadoop.io.compress.GzipCodec, org.apache.hadoop.io.compress.BZip2Codec,<br />org.apache.hadoop.io.compress.Lz4Codec | 输入压缩    | Hadoop使用文件扩展名判断是否支持某种编解码器 |
+|                                                   |                                                              |             |                                              |
 | mapreduce.map.output.compress                     | false                                                        | mapper输出  | 这个参数设为true启用压缩                     |
 | mapreduce.map.output.compress.codec               | org.apache.hadoop.io.compress.DefaultCodec                   | mapper输出  | 使用LZO、LZ4或snappy编解码器在此阶段压缩数据 |
 | mapreduce.output.fileoutputformat.compress        | false                                                        | reducer输出 | 这个参数设为true启用压缩                     |
@@ -80,7 +81,7 @@ hive (default)> select count(*) from aaaa;
 
 ##### 1) 列式存储和行式存储
 
-![行式存储与列式存储](https://github.com/msbbigdata/hive/blob/master/images/%E8%A1%8C%E5%BC%8F%E5%AD%98%E5%82%A8%E4%B8%8E%E5%88%97%E5%BC%8F%E5%AD%98%E5%82%A8.png)
+![](../images/行式存储与列式存储.png)
 
 上图左边为逻辑表，右边第一个为行式存储，第二个为列式存储。
 
